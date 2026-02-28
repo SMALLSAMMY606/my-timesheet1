@@ -2,12 +2,33 @@
 <html>
 <head>
 <title>My Timesheet</title>
+
 <style>
 body{font-family:Arial;margin:30px}
-button{padding:10px;margin:5px}
-table{border-collapse:collapse;margin-top:20px}
-td,th{border:1px solid #999;padding:8px}
+
+button{
+padding:10px;
+margin:5px;
+font-size:16px;
+}
+
+.timer{
+font-size:28px;
+margin-top:10px;
+font-weight:bold;
+}
+
+table{
+border-collapse:collapse;
+margin-top:20px;
+}
+
+td,th{
+border:1px solid #999;
+padding:8px;
+}
 </style>
+
 </head>
 
 <body>
@@ -15,15 +36,22 @@ td,th{border:1px solid #999;padding:8px}
 <h1>My Personal Timesheet</h1>
 
 <button onclick="clockIn()">Clock In</button>
+<button onclick="startBreak()">Start Break</button>
+<button onclick="endBreak()">End Break</button>
 <button onclick="clockOut()">Clock Out</button>
 
-<h3 id="status"></h3>
+<h3>Work Timer</h3>
+<div class="timer" id="workTimer">00:00:00</div>
+
+<h3>Break Timer</h3>
+<div class="timer" id="breakTimer">00:00:00</div>
 
 <table>
 <tr>
 <th>Clock In</th>
 <th>Clock Out</th>
-<th>Hours</th>
+<th>Break (min)</th>
+<th>Hours Worked</th>
 </tr>
 
 <tbody id="table"></tbody>
@@ -33,66 +61,135 @@ td,th{border:1px solid #999;padding:8px}
 <script>
 
 let sessions = JSON.parse(localStorage.getItem("sessions")) || [];
-let startTime = null;
+
+let startTime=null
+let breakStart=null
+let breakTotal=0
+
+let workInterval
+let breakInterval
 
 function save(){
-localStorage.setItem("sessions",JSON.stringify(sessions));
+localStorage.setItem("sessions",JSON.stringify(sessions))
 }
 
 function render(){
 
-let table = document.getElementById("table");
-table.innerHTML="";
+let table=document.getElementById("table")
+table.innerHTML=""
 
 sessions.forEach(s=>{
 table.innerHTML+=`
 <tr>
 <td>${s.in}</td>
 <td>${s.out}</td>
+<td>${s.break}</td>
 <td>${s.hours}</td>
 </tr>
-`;
-});
+`
+})
+
+}
+
+function format(ms){
+
+let sec=Math.floor(ms/1000)
+
+let h=Math.floor(sec/3600)
+let m=Math.floor((sec%3600)/60)
+let s=sec%60
+
+return(
+String(h).padStart(2,"0")+":"+
+String(m).padStart(2,"0")+":"+
+String(s).padStart(2,"0")
+)
 
 }
 
 function clockIn(){
 
-startTime=new Date();
+startTime=new Date()
+breakTotal=0
 
-document.getElementById("status").innerText=
-"Clocked in at "+startTime.toLocaleTimeString();
+workInterval=setInterval(()=>{
+
+let now=new Date()
+let diff=now-startTime-breakTotal
+
+document.getElementById("workTimer").innerText=format(diff)
+
+},1000)
+
+}
+
+function startBreak(){
+
+if(!startTime)return
+
+breakStart=new Date()
+
+breakInterval=setInterval(()=>{
+
+let now=new Date()
+let diff=now-breakStart
+
+document.getElementById("breakTimer").innerText=format(diff)
+
+},1000)
+
+}
+
+function endBreak(){
+
+if(!breakStart)return
+
+let now=new Date()
+
+breakTotal+=now-breakStart
+
+clearInterval(breakInterval)
+
+document.getElementById("breakTimer").innerText="00:00:00"
+
+breakStart=null
 
 }
 
 function clockOut(){
 
-if(!startTime){
-alert("Clock in first");
-return;
-}
+if(!startTime)return
 
-let end=new Date();
+let end=new Date()
 
-let hours=((end-startTime)/1000/60/60).toFixed(2);
+clearInterval(workInterval)
+
+let worked=end-startTime-breakTotal
+
+let hours=(worked/1000/60/60).toFixed(2)
+
+let breakMin=Math.round(breakTotal/1000/60)
 
 sessions.push({
+
 in:startTime.toLocaleTimeString(),
 out:end.toLocaleTimeString(),
+break:breakMin,
 hours:hours
-});
 
-save();
-render();
+})
 
-document.getElementById("status").innerText=
-"Worked "+hours+" hours";
+save()
+render()
 
-startTime=null;
+document.getElementById("workTimer").innerText="00:00:00"
+
+startTime=null
+breakTotal=0
 
 }
 
-render();
+render()
 
 </script>
 
