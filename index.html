@@ -1,37 +1,161 @@
+
 <!DOCTYPE html>
 <html>
 <head>
-<title>My Timesheet</title>
+  <title>My Timesheet PWA</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#333333">
+  <style>
+    body { font-family: Arial; margin: 20px; }
+    button { margin: 5px; padding: 10px; }
+    h1 { color: #333; }
+    table { border-collapse: collapse; width: 100%; margin-top: 20px; }
+    th, td { border: 1px solid #999; padding: 8px; text-align: center; }
+    #totals { margin-top: 20px; font-weight: bold; }
+  </style>
 </head>
-
 <body>
+  <h1>My Timesheet Tracker</h1>
 
-<h1>My Personal Timesheet</h1>
+  <button onclick="clockIn()">Clock In</button>
+  <button onclick="startBreak()">Start Break</button>
+  <button onclick="endBreak()">End Break</button>
+  <button onclick="clockOut()">Clock Out</button>
+  <button onclick="exportCSV()">Export CSV</button>
 
-<button onclick="clockIn()">Clock In</button>
-<button onclick="clockOut()">Clock Out</button>
+  <h2>Today’s Log</h2>
+  <div id="log"></div>
 
-<p id="log"></p>
+  <h2>Work Sessions</h2>
+  <table id="sessionTable">
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Clock In</th>
+        <th>Clock Out</th>
+        <th>Break (min)</th>
+        <th>Hours Worked</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
 
-<script>
+  <div id="totals"></div>
 
-let startTime;
+  <script>
+    let sessions = JSON.parse(localStorage.getItem('sessions') || '[]');
+    let clockInTime = null;
+    let breakStart = null;
+    let breakTime = 0;
 
-function clockIn(){
-  startTime = new Date();
-  document.getElementById("log").innerHTML =
-  "Clocked in at: " + startTime.toLocaleTimeString();
-}
+    function updateTable() {
+      const tbody = document.querySelector("#sessionTable tbody");
+      tbody.innerHTML = "";
+      sessions.forEach(session => {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td>${session.date}</td>
+          <td>${session.clockIn}</td>
+          <td>${session.clockOut}</td>
+          <td>${session.break}</td>
+          <td>${session.hours}</td>
+        `;
+        tbody.appendChild(row);
+      });
+      updateTotals();
+    }
 
-function clockOut(){
-  let endTime = new Date();
-  let hours = (endTime - startTime)/1000/60/60;
-  
-  document.getElementById("log").innerHTML =
-  "Worked " + hours.toFixed(2) + " hours";
-}
+    function updateLog(msg) {
+      document.getElementById("log").innerHTML += msg + "<br>";
+    }
 
-</script>
+    function clockIn() {
+      clockInTime = new Date();
+      breakTime = 0;
+      updateLog("Clocked in at: " + clockInTime.toLocaleTimeString());
+    }
 
+    function startBreak() {
+      if (!clockInTime) return alert("You haven't clocked in yet!");
+      breakStart = new Date();
+      updateLog("Break started at: " + breakStart.toLocaleTimeString());
+    }
+
+    function endBreak() {
+      if (!breakStart) return alert("You haven't started a break!");
+      let now = new Date();
+      breakTime += (now - breakStart);
+      breakStart = null;
+      updateLog("Break ended at: " + now.toLocaleTimeString());
+    }
+
+    function clockOut() {
+      if (!clockInTime) return alert("You haven't clocked in yet!");
+      let clockOutTime = new Date();
+      let workedMs = clockOutTime - clockInTime - breakTime;
+      let hours = (workedMs / 1000 / 60 / 60).toFixed(2);
+      let breaksMin = Math.round(breakTime / 1000 / 60);
+
+      let session = {
+        date: clockInTime.toLocaleDateString(),
+        clockIn: clockInTime.toLocaleTimeString(),
+        clockOut: clockOutTime.toLocaleTimeString(),
+        break: breaksMin,
+        hours: hours
+      };
+      sessions.push(session);
+      localStorage.setItem('sessions', JSON.stringify(sessions));
+
+      updateLog("Clocked out at: " + clockOutTime.toLocaleTimeString() + " | Hours worked: " + hours);
+      updateTable();
+
+      clockInTime = null;
+      breakTime = 0;
+      breakStart = null;
+    }
+
+    function updateTotals() {
+      let weeklyHours = 0;
+      let monthlyHours = 0;
+      const now = new Date();
+      const startOfWeek = new Date(now);
+      startOfWeek.setDate(now.getDate() - now.getDay());
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+      sessions.forEach(session => {
+        const [month, day, year] = session.date.split('/');
+        const d = new Date(year, month-1, day);
+        let hrs = parseFloat(session.hours);
+        if (d >= startOfWeek) weeklyHours += hrs;
+        if (d >= startOfMonth) monthlyHours += hrs;
+      });
+
+      document.getElementById("totals").innerHTML = `Weekly total hours: ${weeklyHours.toFixed(2)} | Monthly total hours: ${monthlyHours.toFixed(2)}`;
+    }
+
+    function exportCSV() {
+      let csvContent = "data:text/csv;charset=utf-8,Date,Clock In,Clock Out,Break (min),Hours Worked\n";
+      sessions.forEach(s => {
+        csvContent += `${s.date},${s.clockIn},${s.clockOut},${s.break},${s.hours}\n`;
+      });
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", "my_timesheet.csv");
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('service-worker.js')
+          .then(reg => console.log('Service Worker registered', reg))
+          .catch(err => console.error('Service Worker failed:', err));
+      });
+    }
+
+    updateTable();
+  </script>
 </body>
 </html>
