@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>My Timesheet</title>
+</head>
+
+<body>
+
+<h1>My Personal Timesheet</h1>
+
+<button onclick="clockIn()">Clock In</button>
+<button onclick="clockOut()">Clock Out</button>
+
+<p id="log"></p>
+
+<script>
+
+let startTime;
+
+function clockIn(){
+  startTime = new Date();
+  document.getElementById("log").innerHTML =
+  "Clocked in at: " + startTime.toLocaleTimeString();
+}
+
+function clockOut(){
+  let endTime = new Date();
+  let hours = (endTime - startTime)/1000/60/60;
+  
+  document.getElementById("log").innerHTML =
+  "Worked " + hours.toFixed(2) + " hours";
+}
+
+</script>
+
+</body>
+</html>
